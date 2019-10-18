@@ -24,7 +24,8 @@ fn prepare_gperftool() {
     }
 }
 
-fn build_gperftool(source_root: &PathBuf) -> std::io::Result<PathBuf> {
+#[cfg(feature = "gperftools")]
+fn build_gperftools(source_root: &PathBuf) -> std::io::Result<PathBuf> {
     prepare_gperftool();
 
     let target_gperftool_source_dir = {
@@ -59,6 +60,12 @@ fn build_gperftool(source_root: &PathBuf) -> std::io::Result<PathBuf> {
     Ok(target_gperftool_source_dir)
 }
 
+#[cfg(not(feature = "gperftools"))]
+fn build_gperftools(_: &PathBuf) -> std::io::Result<PathBuf> {
+    unreachable!();
+}
+
+#[cfg(feature = "unwind")]
 fn build_unwind(source_root: &PathBuf) -> std::io::Result<PathBuf> {
     prepare_gperftool();
 
@@ -89,6 +96,11 @@ fn build_unwind(source_root: &PathBuf) -> std::io::Result<PathBuf> {
     Ok(target_unwind_source_dir)
 }
 
+#[cfg(not(feature = "unwind"))]
+fn build_unwind(_: &PathBuf) -> std::io::Result<PathBuf> {
+    unreachable!();
+}
+
 fn copy_source_files() -> std::io::Result<PathBuf> {
     let third_party_source_dir = {
         let mut current =  std::env::current_dir()?;
@@ -104,8 +116,6 @@ fn copy_source_files() -> std::io::Result<PathBuf> {
     let mut copy = Command::new("cp")
         .args(&[
             "-r",
-            "--remove-destination",
-            "--no-target-directory",
             &format!("{}", third_party_source_dir.display()),
             &format!("{}", target_third_party_source_dir.display()),
         ])
@@ -118,19 +128,23 @@ fn copy_source_files() -> std::io::Result<PathBuf> {
 fn main() -> std::io::Result<()> {
     let source_root = copy_source_files()?;
 
-    let unwind = build_unwind(&source_root)?;
-    let gperftool = build_gperftool(&source_root)?;
+    if cfg!(feature = "gperftools") {
+        let gperftools = build_gperftools(&source_root)?;
+        println!("cargo:rustc-link-lib=dylib=stdc++");
+        println!("cargo:rustc-link-lib=static=profiler");
+        println!(
+            "cargo:rustc-link-search=native={}/.libs",
+            gperftools.display()
+        );
+    }
 
-    println!("cargo:rustc-link-lib=dylib=stdc++");
-    println!("cargo:rustc-link-lib=static=profiler");
-    println!("cargo:rustc-link-lib=static=unwind");
-    println!(
-        "cargo:rustc-link-search=native={}/src/.libs",
-        unwind.display()
-    );
-    println!(
-        "cargo:rustc-link-search=native={}/.libs",
-        gperftool.display()
-    );
+    if cfg!(feature = "unwind") {
+        let unwind = build_unwind(&source_root)?;
+        println!("cargo:rustc-link-lib=static=unwind");
+        println!(
+            "cargo:rustc-link-search=native={}/src/.libs",
+            unwind.display()
+        );
+    }
     Ok(())
 }

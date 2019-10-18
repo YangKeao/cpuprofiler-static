@@ -9,5 +9,10 @@ edition = "2018"
 [dependencies]
 cpuprofiler = "0.0.3"
 
+[features]
+default = []
+unwind = []
+gperftools = []
+
 [build-dependencies]
 num_cpus = "1.8"
