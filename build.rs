@@ -2,6 +2,11 @@ use std::path::{PathBuf, Path};
 use std::{io, fs};
 use std::process::Command;
 
+fn get_c_flags() -> std::ffi::OsString {
+    let original_cflags = std::env::var("CFLAGS").unwrap_or_default();
+    format!("{} -fPIC", original_cflags).into()
+}
+
 fn is_directory_empty<P: AsRef<Path>>(p: P) -> Result<bool, io::Error> {
     let mut entries = fs::read_dir(p)?;
     Ok(entries.next().is_none())
@@ -53,6 +58,7 @@ fn build_gperftools(source_root: &PathBuf) -> std::io::Result<PathBuf> {
     let cpu_num = num_cpus::get();
     let mut make = Command::new("make")
         .args(&[format!("-j{}", cpu_num), "--keep-going".to_owned()])
+        .env("CFLAGS",&get_c_flags())
         .current_dir(&target_gperftool_source_dir)
         .spawn()?;
     make.wait()?;
@@ -89,6 +95,7 @@ fn build_unwind(source_root: &PathBuf) -> std::io::Result<PathBuf> {
     let cpu_num = num_cpus::get();
     let mut make = Command::new("make")
         .args(&[format!("-j{}", cpu_num), "--keep-going".to_owned()])
+        .env("CFLAGS",&get_c_flags())
         .current_dir(&target_unwind_source_dir)
         .spawn()?;
     make.wait()?;
