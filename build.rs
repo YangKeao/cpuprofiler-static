@@ -5,18 +5,6 @@ use std::{fs, io};
 use std::process::Command;
 
 #[cfg(any(feature = "static_gperftools", feature = "static_unwind"))]
-fn get_c_flags() -> std::ffi::OsString {
-    let original_cflags = std::env::var("CFLAGS").unwrap_or_default();
-    format!("{} -fPIC", original_cflags).into()
-}
-
-#[cfg(any(feature = "static_gperftools", feature = "static_unwind"))]
-fn get_cxx_flags() -> std::ffi::OsString {
-    let original_cflags = std::env::var("CXXFLAGS").unwrap_or_default();
-    format!("{} -fPIC", original_cflags).into()
-}
-
-#[cfg(any(feature = "static_gperftools", feature = "static_unwind"))]
 fn is_directory_empty<P: AsRef<Path>>(p: P) -> std::io::Result<bool> {
     let mut entries = fs::read_dir(p)?;
     Ok(entries.next().is_none())
@@ -24,13 +12,13 @@ fn is_directory_empty<P: AsRef<Path>>(p: P) -> std::io::Result<bool> {
 
 #[cfg(any(feature = "static_gperftools", feature = "static_unwind"))]
 fn check() {
-    let libs = vec!["third_party/gperftools", "third_party/libunwind"];
+    let libs = vec!["third_party/gperftools", "third_party/libunwind-0.99"];
 
     for lib in libs {
         if is_directory_empty(lib).unwrap_or(true) {
             panic!(
                 "Can't find library {}. You need to run `git submodule \
-                 update --init --recursive` first to build the project.",
+                 update --init --recursive` and `./download.sh` first to build the project.",
                 lib
             );
         }
@@ -38,7 +26,10 @@ fn check() {
 }
 
 #[cfg(feature = "static_gperftools")]
-fn build_gperftools(source_root: &PathBuf) -> std::io::Result<PathBuf> {
+fn build_gperftools(
+    source_root: &PathBuf,
+    libunwind_path: Option<PathBuf>,
+) -> std::io::Result<PathBuf> {
     check();
 
     let target_gperftool_source_dir = {
@@ -52,15 +43,25 @@ fn build_gperftools(source_root: &PathBuf) -> std::io::Result<PathBuf> {
         .spawn()?;
     autogen.wait()?;
 
+    let mut configure_args = vec![
+        "--disable-heap-profiler",
+        "--disable-heap-checker",
+        "--disable-debugalloc",
+        "--disable-shared",
+        "CFLAGS=-fPIC",
+        "CXXFLAGS=-fPIC",
+    ];
+
+    let libunwind_path = libunwind_path.unwrap();
+    let link_args = format!("LDFLAGS=-L{}/src/.libs", libunwind_path.display());
+    let include_args = format!("CPPFLAGS=-I{}/include", libunwind_path.display());
+    if cfg!(feature = "static_unwind") {
+        configure_args.push(&link_args);
+        configure_args.push(&include_args);
+    }
+
     let mut configure = Command::new("./configure")
-        .args(&[
-            "--disable-heap-profiler",
-            "--disable-heap-checker",
-            "--disable-debugalloc",
-            "--disable-shared",
-        ])
-        .env("CFLAGS", &get_c_flags())
-        .env("CXXFLAGS", &get_cxx_flags())
+        .args(&configure_args)
         .current_dir(&target_gperftool_source_dir)
         .spawn()?;
     configure.wait()?;
@@ -86,30 +87,29 @@ fn build_unwind(source_root: &PathBuf) -> std::io::Result<PathBuf> {
 
     let target_unwind_source_dir = {
         let mut source_root = source_root.clone();
-        source_root.push("libunwind");
+        source_root.push("libunwind-0.99");
         source_root
     };
-
-    let mut autogen = Command::new("./autogen.sh")
-        .current_dir(&target_unwind_source_dir)
-        .spawn()?;
-    autogen.wait()?;
 
     let mut configure = Command::new("./configure")
         .args(&[
             "--disable-shared",
             "--disable-minidebuginfo",
             "--disable-zlibdebuginfo",
+            "CFLAGS=-fPIC",
+            "CXXFLAGS=-fPIC",
         ])
-        .env("CFLAGS", &get_c_flags())
-        .env("CXXFLAGS", &get_cxx_flags())
         .current_dir(&target_unwind_source_dir)
         .spawn()?;
     configure.wait()?;
 
     let cpu_num = num_cpus::get();
     let mut make = Command::new("make")
-        .args(&[format!("-j{}", cpu_num), "--keep-going".to_owned()])
+        .args(&[
+            &format!("-j{}", cpu_num),
+            "--keep-going",
+            "CFLAGS=-U_FORTIFY_SOURCE",
+        ])
         .current_dir(&target_unwind_source_dir)
         .spawn()?;
     make.wait()?;
@@ -155,8 +155,21 @@ fn copy_source_files() -> std::io::Result<PathBuf> {
 fn main() -> std::io::Result<()> {
     let source_root = copy_source_files()?;
 
+    let unwind = if cfg!(feature = "static_unwind") {
+        let unwind = build_unwind(&source_root)?;
+        println!("cargo:rustc-link-lib=static=unwind");
+        println!(
+            "cargo:rustc-link-search=native={}/src/.libs",
+            unwind.display()
+        );
+
+        Some(unwind)
+    } else {
+        None
+    };
+
     if cfg!(feature = "static_gperftools") {
-        let gperftools = build_gperftools(&source_root)?;
+        let gperftools = build_gperftools(&source_root, unwind)?;
         println!("cargo:rustc-link-lib=dylib=stdc++");
         println!("cargo:rustc-link-lib=static=profiler");
         println!(
@@ -165,13 +178,5 @@ fn main() -> std::io::Result<()> {
         );
     }
 
-    if cfg!(feature = "static_unwind") {
-        let unwind = build_unwind(&source_root)?;
-        println!("cargo:rustc-link-lib=static=unwind");
-        println!(
-            "cargo:rustc-link-search=native={}/src/.libs",
-            unwind.display()
-        );
-    }
     Ok(())
 }
