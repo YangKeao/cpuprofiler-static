@@ -52,10 +52,14 @@ fn build_gperftools(
         "CXXFLAGS=-fPIC",
     ];
 
-    let libunwind_path = libunwind_path.unwrap();
-    let link_args = format!("LDFLAGS=-L{}/src/.libs", libunwind_path.display());
-    let include_args = format!("CPPFLAGS=-I{}/include", libunwind_path.display());
+    let link_args;
+    let include_args;
+
     if cfg!(feature = "static_unwind") {
+        let libunwind_path = libunwind_path.unwrap();
+        link_args = format!("LDFLAGS=-L{}/src/.libs", libunwind_path.display());
+        include_args = format!("CPPFLAGS=-I{}/include", libunwind_path.display());
+
         configure_args.push(&link_args);
         configure_args.push(&include_args);
     }
@@ -77,7 +81,7 @@ fn build_gperftools(
 }
 
 #[cfg(not(feature = "static_gperftools"))]
-fn build_gperftools(_: &PathBuf) -> std::io::Result<PathBuf> {
+fn build_gperftools(_: &PathBuf, _: Option<PathBuf>) -> std::io::Result<PathBuf> {
     unreachable!();
 }
 
