@@ -1,27 +1,28 @@
 use std::path::{Path, PathBuf};
 use std::{fs, io};
 
-#[cfg(any(feature = "gperftools", feature = "unwind"))]
+#[cfg(any(feature = "static_gperftools", feature = "static_unwind"))]
 use std::process::Command;
 
-#[cfg(any(feature = "gperftools", feature = "unwind"))]
+#[cfg(any(feature = "static_gperftools", feature = "static_unwind"))]
 fn get_c_flags() -> std::ffi::OsString {
     let original_cflags = std::env::var("CFLAGS").unwrap_or_default();
     format!("{} -fPIC", original_cflags).into()
 }
 
-#[cfg(any(feature = "gperftools", feature = "unwind"))]
+#[cfg(any(feature = "static_gperftools", feature = "static_unwind"))]
 fn get_cxx_flags() -> std::ffi::OsString {
     let original_cflags = std::env::var("CXXFLAGS").unwrap_or_default();
     format!("{} -fPIC", original_cflags).into()
 }
 
+#[cfg(any(feature = "static_gperftools", feature = "static_unwind"))]
 fn is_directory_empty<P: AsRef<Path>>(p: P) -> std::io::Result<bool> {
     let mut entries = fs::read_dir(p)?;
     Ok(entries.next().is_none())
 }
 
-#[cfg(any(feature = "gperftools", feature = "unwind"))]
+#[cfg(any(feature = "static_gperftools", feature = "static_unwind"))]
 fn check() {
     let libs = vec!["third_party/gperftools", "third_party/libunwind"];
 
@@ -36,7 +37,7 @@ fn check() {
     }
 }
 
-#[cfg(feature = "gperftools")]
+#[cfg(feature = "static_gperftools")]
 fn build_gperftools(source_root: &PathBuf) -> std::io::Result<PathBuf> {
     check();
 
@@ -74,12 +75,12 @@ fn build_gperftools(source_root: &PathBuf) -> std::io::Result<PathBuf> {
     Ok(target_gperftool_source_dir)
 }
 
-#[cfg(not(feature = "gperftools"))]
+#[cfg(not(feature = "static_gperftools"))]
 fn build_gperftools(_: &PathBuf) -> std::io::Result<PathBuf> {
     unreachable!();
 }
 
-#[cfg(feature = "unwind")]
+#[cfg(feature = "static_unwind")]
 fn build_unwind(source_root: &PathBuf) -> std::io::Result<PathBuf> {
     check();
 
@@ -116,7 +117,7 @@ fn build_unwind(source_root: &PathBuf) -> std::io::Result<PathBuf> {
     Ok(target_unwind_source_dir)
 }
 
-#[cfg(not(feature = "unwind"))]
+#[cfg(not(feature = "static_unwind"))]
 fn build_unwind(_: &PathBuf) -> std::io::Result<PathBuf> {
     unreachable!();
 }
@@ -154,7 +155,7 @@ fn copy_source_files() -> std::io::Result<PathBuf> {
 fn main() -> std::io::Result<()> {
     let source_root = copy_source_files()?;
 
-    if cfg!(feature = "gperftools") {
+    if cfg!(feature = "static_gperftools") {
         let gperftools = build_gperftools(&source_root)?;
         println!("cargo:rustc-link-lib=dylib=stdc++");
         println!("cargo:rustc-link-lib=static=profiler");
@@ -164,7 +165,7 @@ fn main() -> std::io::Result<()> {
         );
     }
 
-    if cfg!(feature = "unwind") {
+    if cfg!(feature = "static_unwind") {
         let unwind = build_unwind(&source_root)?;
         println!("cargo:rustc-link-lib=static=unwind");
         println!(

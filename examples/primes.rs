@@ -41,10 +41,10 @@ fn prepare_prime_numbers() -> Vec<usize> {
 fn main() {
     let prime_numbers = prepare_prime_numbers();
 
-    cpuprofiler_static::PROFILER
+    gperftools_static::PROFILER
         .lock()
         .unwrap()
-        .start("prime.profile")
+        .start("/tmp/prime.target")
         .unwrap();
 
     let mut v = 0;
@@ -54,7 +54,7 @@ fn main() {
         }
     }
 
-    cpuprofiler_static::PROFILER.lock().unwrap().stop().unwrap();
+    gperftools_static::PROFILER.lock().unwrap().stop().unwrap();
 
     println!("Prime numbers: {}", v);
 }

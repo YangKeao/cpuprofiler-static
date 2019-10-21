@@ -1,5 +1,5 @@
 [package]
-name = "cpuprofiler-static"
+name = "gperftools-static"
 version = "0.1.0"
 authors = ["Yang Keao <keao.yang@yahoo.com>"]
 edition = "2018"
@@ -9,12 +9,12 @@ description = "cpuprofiler with static linked gperftools and unwind"
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
 [dependencies]
-cpuprofiler = "0.0.3"
+gperftools = "0.2.0"
 
 [features]
 default = []
-unwind = []
-gperftools = []
+static_unwind = []
+static_gperftools = []
 
 [build-dependencies]
 num_cpus = "1.8"
