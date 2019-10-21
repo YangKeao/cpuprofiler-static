@@ -1,22 +1,24 @@
-use std::path::{PathBuf, Path};
-use std::{io, fs};
+use std::path::{Path, PathBuf};
 use std::process::Command;
+use std::{fs, io};
 
 fn get_c_flags() -> std::ffi::OsString {
     let original_cflags = std::env::var("CFLAGS").unwrap_or_default();
     format!("{} -fPIC", original_cflags).into()
 }
 
-fn is_directory_empty<P: AsRef<Path>>(p: P) -> Result<bool, io::Error> {
+fn get_cxx_flags() -> std::ffi::OsString {
+    let original_cflags = std::env::var("CXXFLAGS").unwrap_or_default();
+    format!("{} -fPIC", original_cflags).into()
+}
+
+fn is_directory_empty<P: AsRef<Path>>(p: P) -> std::io::Result<bool> {
     let mut entries = fs::read_dir(p)?;
     Ok(entries.next().is_none())
 }
 
 fn prepare_gperftool() {
-    let libs = vec![
-        "third_party/gperftools",
-        "third_party/libunwind",
-    ];
+    let libs = vec!["third_party/gperftools", "third_party/libunwind"];
 
     for lib in libs {
         if is_directory_empty(lib).unwrap_or(true) {
@@ -51,6 +53,8 @@ fn build_gperftools(source_root: &PathBuf) -> std::io::Result<PathBuf> {
             "--disable-debugalloc",
             "--disable-shared",
         ])
+        .env("CFLAGS", &get_c_flags())
+        .env("CXXFLAGS", &get_cxx_flags())
         .current_dir(&target_gperftool_source_dir)
         .spawn()?;
     configure.wait()?;
@@ -58,7 +62,6 @@ fn build_gperftools(source_root: &PathBuf) -> std::io::Result<PathBuf> {
     let cpu_num = num_cpus::get();
     let mut make = Command::new("make")
         .args(&[format!("-j{}", cpu_num), "--keep-going".to_owned()])
-        .env("CFLAGS",&get_c_flags())
         .current_dir(&target_gperftool_source_dir)
         .spawn()?;
     make.wait()?;
@@ -87,7 +90,13 @@ fn build_unwind(source_root: &PathBuf) -> std::io::Result<PathBuf> {
     autogen.wait()?;
 
     let mut configure = Command::new("./configure")
-        .args(&["--disable-shared", "--disable-minidebuginfo", "--disable-zlibdebuginfo"])
+        .args(&[
+            "--disable-shared",
+            "--disable-minidebuginfo",
+            "--disable-zlibdebuginfo",
+        ])
+        .env("CFLAGS", &get_c_flags())
+        .env("CXXFLAGS", &get_cxx_flags())
         .current_dir(&target_unwind_source_dir)
         .spawn()?;
     configure.wait()?;
@@ -95,7 +104,6 @@ fn build_unwind(source_root: &PathBuf) -> std::io::Result<PathBuf> {
     let cpu_num = num_cpus::get();
     let mut make = Command::new("make")
         .args(&[format!("-j{}", cpu_num), "--keep-going".to_owned()])
-        .env("CFLAGS",&get_c_flags())
         .current_dir(&target_unwind_source_dir)
         .spawn()?;
     make.wait()?;
@@ -109,27 +117,33 @@ fn build_unwind(_: &PathBuf) -> std::io::Result<PathBuf> {
 }
 
 fn copy_source_files() -> std::io::Result<PathBuf> {
+    let mut copy_options = fs_extra::dir::CopyOptions::new();
+    copy_options.overwrite = true;
+    copy_options.copy_inside = true;
+
     let third_party_source_dir = {
-        let mut current =  std::env::current_dir()?;
+        let mut current = std::env::current_dir()?;
         current.push("third_party");
         current
     };
 
     let target_third_party_source_dir: PathBuf = {
         let out_dir: String = std::env::var("OUT_DIR").unwrap();
-        PathBuf::from(format!("{}/third_party", out_dir))
+        PathBuf::from(out_dir)
     };
 
-    let mut copy = Command::new("cp")
-        .args(&[
-            "-r",
-            &format!("{}", third_party_source_dir.display()),
-            &format!("{}", target_third_party_source_dir.display()),
-        ])
-        .spawn()?;
-    copy.wait()?;
-
-    Ok(target_third_party_source_dir)
+    match fs_extra::dir::copy(
+        &third_party_source_dir,
+        &target_third_party_source_dir,
+        &copy_options,
+    ) {
+        Ok(_) => {
+            let mut target = target_third_party_source_dir.clone();
+            target.push("third_party");
+            Ok(target)
+        }
+        Err(err) => Err(io::Error::new(io::ErrorKind::Other, err)),
+    }
 }
 
 fn main() -> std::io::Result<()> {

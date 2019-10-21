@@ -16,3 +16,4 @@ gperftools = []
 
 [build-dependencies]
 num_cpus = "1.8"
+fs_extra = "1.1.0"
