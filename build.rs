@@ -2,11 +2,13 @@ use std::path::{Path, PathBuf};
 use std::process::Command;
 use std::{fs, io};
 
+#[cfg(any(feature = "gperftools", feature = "unwind"))]
 fn get_c_flags() -> std::ffi::OsString {
     let original_cflags = std::env::var("CFLAGS").unwrap_or_default();
     format!("{} -fPIC", original_cflags).into()
 }
 
+#[cfg(any(feature = "gperftools", feature = "unwind"))]
 fn get_cxx_flags() -> std::ffi::OsString {
     let original_cflags = std::env::var("CXXFLAGS").unwrap_or_default();
     format!("{} -fPIC", original_cflags).into()
