@@ -1,6 +1,8 @@
 use std::path::{Path, PathBuf};
-use std::process::Command;
 use std::{fs, io};
+
+#[cfg(any(feature = "gperftools", feature = "unwind"))]
+use std::process::Command;
 
 #[cfg(any(feature = "gperftools", feature = "unwind"))]
 fn get_c_flags() -> std::ffi::OsString {
@@ -19,7 +21,8 @@ fn is_directory_empty<P: AsRef<Path>>(p: P) -> std::io::Result<bool> {
     Ok(entries.next().is_none())
 }
 
-fn prepare_gperftool() {
+#[cfg(any(feature = "gperftools", feature = "unwind"))]
+fn check() {
     let libs = vec!["third_party/gperftools", "third_party/libunwind"];
 
     for lib in libs {
@@ -35,7 +38,7 @@ fn prepare_gperftool() {
 
 #[cfg(feature = "gperftools")]
 fn build_gperftools(source_root: &PathBuf) -> std::io::Result<PathBuf> {
-    prepare_gperftool();
+    check();
 
     let target_gperftool_source_dir = {
         let mut source_root = source_root.clone();
@@ -78,7 +81,7 @@ fn build_gperftools(_: &PathBuf) -> std::io::Result<PathBuf> {
 
 #[cfg(feature = "unwind")]
 fn build_unwind(source_root: &PathBuf) -> std::io::Result<PathBuf> {
-    prepare_gperftool();
+    check();
 
     let target_unwind_source_dir = {
         let mut source_root = source_root.clone();
