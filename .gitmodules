@@ -4,3 +4,4 @@
 [submodule "third_party/libunwind"]
 	path = third_party/libunwind
 	url = https://github.com/libunwind/libunwind.git
+  branch = v0.99-stable
