@@ -1,4 +1,3 @@
 /target
 **/*.rs.bk
 Cargo.lock
-third_party/libunwind-0.99
